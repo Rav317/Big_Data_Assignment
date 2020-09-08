@@ -31,17 +31,17 @@ for section in reader:
 		key = section['word']+"1"  # adding 1 to symbolize case 1
 		value = 1
 		if(key not in inter_kv):
-			inter_kv[key] = 1
+			inter_kv[key] = value
 		else:
-			inter_kv[key] += 1
+			inter_kv[key] += value
 	# case 2
 	elif(section['word'] == word and section['recognized'] == False and (weekday == 5 or weekday == 6)):
 		key = section['word']+"2"  # adding 2 to symbolize case 2
 		value = -1
 		if(key not in inter_kv):
-			inter_kv[key] = -1
+			inter_kv[key] = value
 		else:
-			inter_kv[key] -= 1
+			inter_kv[key] += value
 
 for kv in inter_kv:
 	print(kv, inter_kv[kv], sep = "\t")

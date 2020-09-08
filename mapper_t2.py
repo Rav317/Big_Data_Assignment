@@ -35,9 +35,9 @@ for section in reader:
 		key = section['countrycode']
 		value = 1
 		if(key not in inter_kv):
-			inter_kv[key] = 1
+			inter_kv[key] = value
 		else:
-			inter_kv[key]+=1
+			inter_kv[key] += value
 
 # sorting based on the keys
 for k in sorted(inter_kv.keys()):
