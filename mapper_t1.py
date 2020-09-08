@@ -1,3 +1,5 @@
+#!/bin/usr/python3
+
 import sys
 import ndjson
 import datetime
