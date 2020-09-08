@@ -1,7 +1,8 @@
 import sys
 
 # final key-value pairs
-kv = {}
+ans1 = 0
+ans2 = 0
 
 for inter_kv in sys.stdin:
 	inter_kv = inter_kv.strip()
@@ -12,18 +13,10 @@ for inter_kv in sys.stdin:
 	value = int(inter_kv[1])
 	
 	# aggregating the value for each key
-	if(key not in kv):
-		kv[key] = value
+	if(value > 0):
+		ans1 += value
 	else:
-		kv[key] += value
+		ans2 += value
 
-
-for output in kv:
-	# Task-1
-	if(output[-1] == "1" or output[-1] == "2"):
-		print(kv[output])
-	
-	# Task-2
-	else:
-		print(output, kv[output], sep = "\t")
+print(ans1, -ans2, sep = "\n")
 
