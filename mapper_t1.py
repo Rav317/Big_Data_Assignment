@@ -3,7 +3,6 @@
 import sys
 import ndjson
 import datetime
-import math
 
 reader = ndjson.reader(sys.stdin)  # ndjson reader for inputting data
 
