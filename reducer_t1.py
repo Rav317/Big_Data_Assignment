@@ -1,3 +1,5 @@
+#!/bin/usr/python3
+
 import sys
 
 # final key-value pairs
