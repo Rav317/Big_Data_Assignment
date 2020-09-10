@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 import sys
-import ndjson
+import json
 import datetime
 import math
 
@@ -16,8 +16,6 @@ def is_valid(section):
 	
 	return False
 
-reader = ndjson.reader(sys.stdin)  # ndjson reader for inputting data
-
 # accessing the word argument and the distance argument
 word = sys.argv[1]
 k = float(sys.argv[2])
@@ -25,8 +23,13 @@ k = float(sys.argv[2])
 # combining the result to reduce key-value pairs
 inter_kv = {}
 
-# iterating over ndjson objects
-for section in reader:
+# inputting the data from the file
+data = []
+for line in sys.stdin:
+	data.append(json.loads(line))
+
+# iterating over json objects
+for section in data:
 
 	# checking validity of the objects according to the given constraints
 	if(not is_valid(section)):

@@ -20,6 +20,6 @@ for inter_kv in sys.stdin:
 		kv[key] += value
 
 
-for output in kv:
+for output in sorted(kv.keys()):
 		print(output, kv[output], sep = ",")
 
