@@ -21,5 +21,5 @@ for inter_kv in sys.stdin:
 
 
 for output in kv:
-		print(output, kv[output], sep = "\t")
+		print(output, kv[output], sep = ",")
 
