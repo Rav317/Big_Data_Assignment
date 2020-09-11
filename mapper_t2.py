@@ -42,8 +42,8 @@ for section in data:
 	# distance calculation from the origin(0,0)
 	dist = math.sqrt(xcoor*xcoor + ycoor*ycoor)
 
-	# if distance is greater than k, output the intermediate key-value pair
-	if(dist > k):
+	# if distance is greater than k and word is same as the argument, aggregate the values
+	if(dist > k and section['word'] == word):
 		key = section['countrycode']
 		value = 1
 		if(key not in inter_kv):
