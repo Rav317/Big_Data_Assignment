@@ -2,7 +2,6 @@
 
 import sys
 import json
-import datetime
 import math
 
 # function to check vallidity of the json object
