@@ -1,6 +1,4 @@
-# Big_Data_Assignment
-
-This the repository for the Big Data Assignment as part of the 3rd Year course on Big Data.
+# Assignment 1
 
 Assignment is the implementation and application of MapReduce to solve large-scale problems.
 This requires Hadoop architecture.
