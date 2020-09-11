@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 import sys
-import ndjson
+import json
 import datetime
 
 
@@ -16,13 +16,18 @@ def is_valid(section):
 	
 	return False
 
-reader = ndjson.reader(sys.stdin)  # ndjson reader for inputting data
 
 word = sys.argv[1]   #accessing the word argument
 
 inter_kv = {}
-# iterating over different ndjson objects
-for section in reader:
+
+# inputting the data from the file
+data = []
+for line in sys.stdin:
+	data.append(json.loads(line))
+
+# iterating over different json objects
+for section in data:
 
 	# checking validity of the object according to given constraints
 	if(not is_valid(section)):
