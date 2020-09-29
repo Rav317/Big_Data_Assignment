@@ -6,7 +6,7 @@ inter_kv = {}
 
 for line in sys.stdin:
 	line = line.strip()
-	line = line.split()
+	line = line.split("\t")
 
 	k = line[0]
 	v = line[1]
@@ -17,6 +17,6 @@ for line in sys.stdin:
 		inter_kv[k].append(v)
 
 for key in sorted(inter_kv.keys()):
-	print(key, end = " ")
+	print(key, end = "\t")
 	[print(val, end = " ") for val in sorted(inter_kv[key])]
 	print("")
