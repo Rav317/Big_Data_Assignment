@@ -23,7 +23,7 @@ f1 = open("v", "a")
 
 for key in sorted(kv.keys()):
 
-	print(str(key)+"\t"+str(sorted(kv[key])) + "\n")
+	print(str(key)+"\t"+str(sorted(kv[key])))
 	f1.write(str(key) + ", 1\n")
 
 f1.close()
