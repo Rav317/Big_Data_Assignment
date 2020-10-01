@@ -8,6 +8,9 @@ for line in sys.stdin:
 	line = line.strip()
 	line = line.split("\t")
 
+	if(len(line)<2):
+		continue
+		
 	k = line[0]
 	v = line[1]
 	
@@ -17,6 +20,8 @@ for line in sys.stdin:
 		inter_kv[k].append(v)
 
 for key in sorted(inter_kv.keys()):
+	if(not inter_kv[key]):
+		continue
 	print(key, end = "\t")
 	[print(val, end = " ") for val in sorted(inter_kv[key])]
 	print("")
