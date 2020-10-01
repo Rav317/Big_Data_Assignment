@@ -9,7 +9,7 @@ vis = {}
 for line in f:
 	line = line.strip()
 	line = line.split(", ")
-	vkv[int(line[0])] = int(line[1])
+	vkv[int(line[0])] = float(line[1])
 	vis[int(line[0])] = 0
 
 f.close()
