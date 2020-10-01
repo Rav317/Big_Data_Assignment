@@ -7,7 +7,7 @@ kv = {}
 for line in sys.stdin:
 	line = line.strip()
 	line = line.split("\t")
-	k = line[0]
+	k = int(line[0])
 	v = float(line[1])
 
 	if(k not in kv):
@@ -16,4 +16,4 @@ for line in sys.stdin:
 		kv[k] += v
 
 for k in sorted(kv.keys()):
-	print(k,", ",kv[k], sep = "")
+	print(k,", ", round(0.15 + 0.85*kv[k], 5), sep = "")

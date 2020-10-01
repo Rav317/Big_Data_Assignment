@@ -8,12 +8,11 @@ for line in sys.stdin:
 	line = line.strip()
 	line = line.split("\t")
 
-	k = line[0]
+	k = int(line[0])
 	v = []
 	for i in range(0, len(line[1])):
 		if(line[1][i] != " "):
-			#v.append(int(line[1][i]))
-			v.append(line[1][i])
+			v.append(int(line[1][i]))
 
 	if(k not in kv):
 		kv[k] = v
