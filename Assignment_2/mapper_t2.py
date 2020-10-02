@@ -24,6 +24,7 @@ for adjlist in sys.stdin:
 	for i in adjlist[1]:
 		if("0"<=i<="9"):
 			dest.append(int(i))
+			
 	length = len(dest)
 
 	# outputting page rank contribution by each node for a node
