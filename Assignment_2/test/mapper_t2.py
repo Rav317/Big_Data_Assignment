@@ -26,7 +26,7 @@ for adjlist in sys.stdin:
 
 	for val in dest:
 		if(val in vkv):
-			print(val, vkv[val]/length, sep = "\t")
+			print(val, vkv[sor]/length, sep = "\t")
 			vis[val] = 1
 
 # for nodes with no incoming edges
