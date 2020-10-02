@@ -16,4 +16,4 @@ for line in sys.stdin:
 		kv[k] += v
 
 for k in sorted(kv.keys()):
-	print(k,",", round(kv[k], 5), sep = "")
+	print(k,",", round(0.15 + 0.85*kv[k], 5), sep = "")
