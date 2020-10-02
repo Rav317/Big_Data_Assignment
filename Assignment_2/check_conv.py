@@ -2,7 +2,7 @@ import shutil
 import os
 count=0
 n=0
-conv =0.5 #this value will vary for different test cases in the backend
+conv =0.9 #this value will vary for different test cases in the backend
 def rewrite_pagerank():
 	os.remove("v")
 
