@@ -19,7 +19,7 @@ for line in sys.stdin:
 		kv[k] += v
 
 vpath = sys.argv[1]
-f1 = open(vpath, "r")
+f1 = open(vpath, "w")
 
 for key in sorted(kv.keys()):
 
