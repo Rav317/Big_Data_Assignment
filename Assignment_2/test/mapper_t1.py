@@ -8,9 +8,6 @@ inter_kv = {}
 for line in sys.stdin:
 	line = line.strip()
 	line = line.split("\t")
-
-	if(len(line)<2):
-		continue
 		
 	k = line[0]
 	v = line[1]
@@ -22,9 +19,6 @@ for line in sys.stdin:
 		inter_kv[k].append(v)
 
 # outputing the src node : dest nodes...  as sorted
-for key in sorted(inter_kv.keys()):
-	if(not inter_kv[key]):
-		continue
+for key in inter_kv:
 	print(key, end = "\t")
-	[print(val, end = " ") for val in sorted(inter_kv[key])]
-	print("")
+	print(inter_kv[key])
