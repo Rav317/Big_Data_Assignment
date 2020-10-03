@@ -21,7 +21,8 @@ for line in sys.stdin:
 	else:
 		kv[k] += v
 
-f1 = open("v", "a")
+vpath = sys.argv[1]
+f1 = open(vpath, "a")
 
 for key in sorted(kv.keys()):
 
