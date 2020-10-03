@@ -19,4 +19,4 @@ for line in sys.stdin:
 
 # outputting the new page rank values
 for k in sorted(kv.keys()):
-	print(k,",", round(0.15 + 0.85*kv[k], 5), sep = "")
+	print(k,",", format(round(0.15 + 0.85*kv[k], 5), '.5f'), sep = "")

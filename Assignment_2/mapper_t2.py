@@ -10,7 +10,7 @@ f = open(vpath, "r")
 
 for line in f:
 	line = line.strip()
-	line = line.split(", ")
+	line = line.split(",")
 	vkv[line[0]] = float(line[1])
 	vis[line[0]] = False
 
