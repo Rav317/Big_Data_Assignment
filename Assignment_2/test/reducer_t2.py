@@ -7,7 +7,7 @@ kv = {}
 for line in sys.stdin:
 	line = line.strip()
 	line = line.split("\t")
-	k = int(line[0])
+	k = line[0]
 	v = float(line[1])
 
 	if(k not in kv):

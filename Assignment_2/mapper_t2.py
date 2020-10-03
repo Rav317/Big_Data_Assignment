@@ -2,32 +2,31 @@
 
 import sys
 
-f = open("v", "r")
 vkv = {}
 vis = {}
+
+f = open("v", "r")
 
 for line in f:
 	line = line.strip()
 	line = line.split(",")
-	vkv[int(line[0])] = float(line[1])
-	vis[int(line[0])] = 0
+	vkv[line[0]] = float(line[1])
+	vis[line[0]] = False
 
 f.close()
 
 for adjlist in sys.stdin:
 	adjlist = adjlist.strip()
 	adjlist = adjlist.split("\t")
-	adjsrc = adjlist[1][1:len(adjlist[1])-1].split(", ")
+	adjsrc = adjlist[1][1 : len(adjlist[1])-1].split(", ")
 	
-	dest = [int(i) for i in adjsrc]
-	sor = int(adjlist[0])
-
+	dest = [i[1:len(i)-1] for i in adjsrc]
+	sor = adjlist[0]
 	length = len(dest)
 
 	for val in dest:
-		if(val in vkv):
-			print(val, vkv[sor]/length, sep = "\t")
-			vis[val] = 1
+		print(val, vkv[sor]/length, sep = "\t")
+		vis[val] = True
 
 # for nodes with no incoming edges
 for val in vkv:

@@ -9,11 +9,11 @@ for line in sys.stdin:
 	line = line.strip()
 	line = line.split("\t")
 
-	k = int(line[0])
+	k = line[0]
 	v = []
 	for i in range(0, len(line[1])):
 		if(line[1][i] != " "):
-			v.append(int(line[1][i]))
+			v.append(line[1][i])
 
 	# adding the dest nodes for a src node
 	if(k not in kv):
