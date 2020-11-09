@@ -24,7 +24,7 @@ if(final.count()==0):
 	print(0)
 else:
 	for row in final.rdd.collect():
-	    print(row[0],row[1])
+	    print(row[0],",",row[1],sep="")
 
 
 
