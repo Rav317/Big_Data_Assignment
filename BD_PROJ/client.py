@@ -61,7 +61,7 @@ playdels = spark.createDataFrame(spark.sparkContext.emptyRDD(),schema)
 # # playdels.printSchema()
 
 
-chems = spark.createDataFrame(spark.sparkContext.emptyRDD(),schema2)
+# chems = spark.createDataFrame(spark.sparkContext.emptyRDD(),schema2)
 # # chems.printSchema()
 
 
@@ -75,7 +75,7 @@ def to_datetime(x):
     return tempdate
 
 def select_this_match(req_match):
-    ret = playdels.filter(req_match['dateutc']==playdels.match_date).filter(req_match['label']==playdels.label)
+    ret = playdels.filter(req_match['dateutc'].split()[0]==playdels.match_date).filter(req_match['label']==playdels.label)
     return ret
 
 def return_pass_accuracy(req_player_id,match=0):
@@ -134,9 +134,6 @@ def return_no_of_own_goals(req_player_id):
     return no_of_own_goals
 
 
-
-
-
 def return_player_contribution(req_player_id,match):
     if(playdels.filter(playdels.player_Id==req_player_id).filter(playdels.label==match["label"]).collect()[0]['minutes_played']==0):
         return 0
@@ -159,30 +156,28 @@ def return_player_rating(req_player_id,match):
 
 def playdels_update(match,event):
     pass
+
 def chems_update(match):
     pass
 
+def initialise_playdel(match):
+    global playdels
+    columns = list(playdels.columns)
 
-# def initialise_playdel(match):
-#     # print(json.dumps(match, indent = 3))
-#     global playdels
-#     columns = list(playdels.columns)
+    datee = match["dateutc"].split(" ")[0]
+    label = match["label"]
+    gameweek = match["gameweek"]
+    venue = match["venue"]
+    duration = match["duration"]
 
-#     datee = match["dateutc"].split(" ")[0]
-#     label = match["label"]
+    team_ids = list(match['teamsData'].keys())
+    for t_id in team_ids:
+        for players in match["teamsData"][t_id]["formation"]["lineup"]:
+            playerId = players["playerId"]
+            init_row = spark.createDataFrame([(datee, label, playerId, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 90, 0, 0, 0, venue,gameweek,duration)], columns)
+            playdels = playdels.union(init_row)
 
 
-#     # print(datee, label)
-
-#     # print(columns)
-#     team_ids = list(match['teamsData'].keys())
-#     for t_id in team_ids:
-#         for players in match["teamsData"][t_id]["formation"]["lineup"]:
-#             playerId = players["playerId"]
-#             init_row = spark.createDataFrame([(datee, label, playerId, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0, "",0,"*")], columns)
-#             playdels = playdels.union(init_row)
-
-#     playdels.show()
 
 # def driver(rdd):
 #     a = rdd.collect()
@@ -190,6 +185,66 @@ def chems_update(match):
 #     initialise_playdel(match)
 
 
+# print("Pass accuracy",return_pass_accuracy(1,match))
+# print("Duel effectiveness",return_duel_effectiveness(1,match))
+# print("Free Kick effectiveness",return_free_kick_effectiveness(1,match))
+# print("Shot effectiveness",return_shots_on_target(1,match))
+# print("No of Fouls",return_no_of_fouls(1))
+# print("no_of_own_goals",return_no_of_own_goals(1))
+# print("Player rating",return_player_rating(1,match))
+
+
+def handle_event(event,match):
+    global playdels
+    req_player_id = int(event['playerId'])
+    dateutc = match['dateutc'].split()[0]
+    if(event['eventId']==8):#Pass
+        select_this_match(match).show()
+        np = select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['normal_pass']
+        anp = select_this_match(match).filter(playdels.player_Id==req_player_id).agg({'accurate_normal_pass':'sum'}).collect()[0]['sum(accurate_normal_pass)']
+        kp = select_this_match(match).filter(playdels.player_Id==req_player_id).agg({'key_pass':'sum'}).collect()[0]['sum(key_pass)']
+        akp = select_this_match(match).filter(playdels.player_Id==req_player_id).agg({'accurate_key_pass':'sum'}).collect()[0]['sum(accurate_key_pass)']
+        tags = [tags["id"] for tags in event["tags"]]
+        if 302 in tags:
+            if 1801 in tags:
+                akp+=1
+            kp+=1
+        else:
+            if 1801 in tags:
+                anp+=1
+            np+=1
+        playdels = playdels.withColumn("normal_pass",           when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), np).otherwise(playdels["normal_pass"]))
+        playdels = playdels.withColumn("accurate_normal_pass",  when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), anp).otherwise(playdels["accurate_normal_pass"]))
+        playdels = playdels.withColumn("key_pass",              when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), kp).otherwise(playdels["key_pass"]))
+        playdels = playdels.withColumn("accurate_key_pass",     when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), akp).otherwise(playdels["accurate_key_pass"]))
+        # print(select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['normal_pass'])
+        # print(select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['accurate_normal_pass'])
+        # print(select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['key_pass'])
+        # print(select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['accurate_key_pass'])
+
+    elif(event['eventId']==102):#Pass
+        select_this_match(match).show()
+        np = select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['normal_pass']
+        anp = select_this_match(match).filter(playdels.player_Id==req_player_id).agg({'accurate_normal_pass':'sum'}).collect()[0]['sum(accurate_normal_pass)']
+        kp = select_this_match(match).filter(playdels.player_Id==req_player_id).agg({'key_pass':'sum'}).collect()[0]['sum(key_pass)']
+        akp = select_this_match(match).filter(playdels.player_Id==req_player_id).agg({'accurate_key_pass':'sum'}).collect()[0]['sum(accurate_key_pass)']
+        tags = [tags["id"] for tags in event["tags"]]
+        if 302 in tags:
+            if 1801 in tags:
+                akp+=1
+            kp+=1
+        else:
+            if 1801 in tags:
+                anp+=1
+            np+=1
+        playdels = playdels.withColumn("normal_pass",           when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), np).otherwise(playdels["normal_pass"]))
+        playdels = playdels.withColumn("accurate_normal_pass",  when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), anp).otherwise(playdels["accurate_normal_pass"]))
+        playdels = playdels.withColumn("key_pass",              when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), kp).otherwise(playdels["key_pass"]))
+        playdels = playdels.withColumn("accurate_key_pass",     when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), akp).otherwise(playdels["accurate_key_pass"]))
+        # print(select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['normal_pass'])
+        # print(select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['accurate_normal_pass'])
+        # print(select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['key_pass'])
+        # print(select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['accurate_key_pass'])
 
 
 
@@ -197,37 +252,22 @@ def driver(rdd):
     a = rdd.collect()
     print(type(a[0]))
     match = json.loads(a[0])
-    # print(json.dumps(match, indent = 3)) 
-    print("Pass accuracy",return_pass_accuracy(1,match))
-    print("Duel effectiveness",return_duel_effectiveness(1,match))
-    print("Free Kick effectiveness",return_free_kick_effectiveness(1,match))
-    print("Shot effectiveness",return_shots_on_target(1,match))
-    print("No of Fouls",return_no_of_fouls(1))
-    print("no_of_own_goals",return_no_of_own_goals(1))
-    print("Player rating",return_player_rating(1,match))
-    # for event in a[1:]:
-    #     print("-")
-    #     break
+    initialise_playdel(match)
+    print("****************PLAYDELS********************")
+    playdels.show()
+    for event in a[1:]:
+        event = json.loads(event)
+        handle_event(event,match)
     chems_update(match)
 
-# Adding new Rows
-playdels_cols = list(playdels.columns)
-newRow = spark.createDataFrame([('2017-08-11 18:45:00','Arsenal - Leicester City, 4 - 3',1,22,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,'b',2,'b'),
-                                ('2017-08-11 18:45:00','Arsenal - Leicester City, 4 - 3',1,1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,'b',2,'b'),
-                                ('2017-08-11 18:45:00','Arsenal - Leicester City, 3 - 3',1,3,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,'b',3,'b')], playdels_cols)
-playdels = playdels.union(newRow)
 
-
-
-# print("Pass accracy",return_pass_accuracy(1))
-# print("Free Kick effectiveness",return_free_kick_effectiveness(1))
-# print("No of Fouls",return_no_of_fouls(1))
-
-# playdels.show()
-
+# player profile
 player_profile = spark.read.options(header='True').csv("file:///home/ishan/Desktop/BD_PROJ/play.csv")
+player_profile = player_profile.withColumn("no_of_fouls",lit(0)).withColumn("no_of_goals",lit(0)).withColumn("no_of_own_goals",lit(0)).withColumn("pass_accuracy",lit(0)).withColumn("shots_on_target",lit(0)).withColumn("no_of_matches_played",lit(0)).withColumn("rating",lit(0))
+player_profile.printSchema()
 
-
+chems = spark.read.options(header='True').csv("file:///home/ishan/Desktop/BD_PROJ/chems.csv")
+chems.printSchema()
 
 ssc = StreamingContext(spark.sparkContext, 5)
 dstream = ssc.socketTextStream('localhost', 6100)
