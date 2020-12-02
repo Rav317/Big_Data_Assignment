@@ -7,6 +7,8 @@ from pyspark.sql import SQLContext
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
+import pandas as pd
+import csv
 
 spark = SparkSession.builder.appName("Proj").master("local[2]").getOrCreate()
 
@@ -57,18 +59,7 @@ schema = StructType([
     StructField('duration', StringType(), True),
   ])
 
-playdels = spark.createDataFrame(spark.sparkContext.emptyRDD(),schema)
-# # playdels.printSchema()
-
-
-# chems = spark.createDataFrame(spark.sparkContext.emptyRDD(),schema2)
-# # chems.printSchema()
-
-
-
-# to_datetime =  udf (lambda x: datetime.strptime(x, '%B %d, %Y at %I:%M:%S %p %Z%z'), DateType())
-# to_datetime =  udf (lambda x: datetime.strptime(x, '%Y-%m-%d %H:%M:%S'), DateType())
-
+# playdels = spark.createDataFrame(spark.sparkContext.emptyRDD(),schema)
 
 def to_datetime(x):
     tempdate = to_timestamp(x.split()[0],"yyyy-MM-dd")
@@ -133,7 +124,6 @@ def return_no_of_own_goals(req_player_id):
     no_of_own_goals = playdels.filter(playdels.player_Id==req_player_id).agg({'no_of_own_goals':'sum'}).collect()[0]['sum(no_of_own_goals)']
     return no_of_own_goals
 
-
 def return_player_contribution(req_player_id,match):
     if(playdels.filter(playdels.player_Id==req_player_id).filter(playdels.label==match["label"]).collect()[0]['minutes_played']==0):
         return 0
@@ -178,87 +168,373 @@ def initialise_playdel(match):
             playdels = playdels.union(init_row)
 
 
+def chems_update(match):
+    global chems
+    global playdels
+    team_ids = list(match['teamsData'].keys())
+
+    team_1 = playdels.filter((playdels.match_date == match["dateutc"].split(" ")[0] )&( playdels.label == match["label"] )&( playdels.team_Id == team_ids[0])).select(playdels.player_Id)
+    team_2 = playdels.filter((playdels.match_date == match["dateutc"].split(" ")[0] )&( playdels.label == match["label"] )&( playdels.team_Id == team_ids[1])).select(playdels.player_Id)
+
+    team_1_ids = [i['player_Id'] for i in team_1.collect()]
+    team_2_ids = [i['player_Id'] for i in team_2.collect()]
+    
+    for pl_id_1 in team_1_ids:
+        for pl_id_2 in team_2_ids:
+            ch_1, ch_2,ch = rat_change(pl_id_1, pl_id_2, match)
+            if(ch_1 * ch_2 >= 0):
+                # decrease for both
+                old_val = chems.filter(chems.player_1 == pl_id_1 & chems.player_2 == pl_id_2).select("chemistry")
+                new_val = old_val-ch
+                chem = chem.where("player_1" != pl_id_1 & "player_2" != pl_id_2)
+                new_row  = spark.createDataFrame([(pl_id_1, pl_id_2, new_val)], list(chems.columns))
+
+                old_val = chems.filter(chems.player_1 == pl_id_2 & chems.player_2 == pl_id_1).select("chemistry")
+                new_val = old_val-ch
+                chem = chem.where("player_1" != pl_id_2 & "player_2" != pl_id_1)
+                new_row  = spark.createDataFrame([(pl_id_2, pl_id_1, new_val)], list(chems.columns))
+
+            else:
+                # increase for both
+                old_val = chems.filter(chems.player_1 == pl_id_1 & chems.player_2 == pl_id_2).select("chemistry")
+                new_val = old_val+ch
+                chem = chem.where("player_1" != pl_id_1 & "player_2" != pl_id_2)
+                new_row  = spark.createDataFrame([(pl_id_1, pl_id_2, new_val)], list(chems.columns))
+
+                old_val = chems.filter(chems.player_1 == pl_id_2 & chems.player_2 == pl_id_1).select("chemistry")
+                new_val = old_val+ch
+                chem = chem.where("player_1" != pl_id_2 & "player_2" != pl_id_1)
+                new_row  = spark.createDataFrame([(pl_id_2, pl_id_1, new_val)], list(chems.columns))
+
+
+    for i in range(len(team_1_ids)):
+        for j in range(i+1, len(team_1_ids)):
+            ch_1, ch_2, ch = rat_change(team_1_ids[i], team_1_ids[j])
+            if(ch_1 * ch_2 < 0):
+                # decrease for both
+                old_val = chems.filter(chems.player_1 == team_1_ids[i] & chems.player_2 == team_ids[j]).select("chemistry")
+                new_val = old_val-ch
+                chem = chem.where("player_1" != team_1_ids[i] & "player_2" != team_ids[j])
+                new_row  = spark.createDataFrame([(team_1_ids[i], team_ids[j], new_val)], list(chems.columns))
+
+                old_val = chems.filter(chems.player_1 == team_ids[j] & chems.player_2 == team_1_ids[i]).select("chemistry")
+                new_val = old_val-ch
+                chem = chem.where("player_1" != team_ids[j] & "player_2" != team_1_ids[i])
+                new_row  = spark.createDataFrame([(team_ids[j], team_1_ids[i], new_val)], list(chems.columns))
+            else:
+                # increase for both
+                old_val = chems.filter(chems.player_1 == team_1_ids[i] & chems.player_2 == team_ids[j]).select("chemistry")
+                new_val = old_val+ch
+                chem = chem.where("player_1" != team_1_ids[i] & "player_2" != team_ids[j])
+                new_row  = spark.createDataFrame([(team_1_ids[i], team_ids[j], new_val)], list(chems.columns))
+
+                old_val = chems.filter(chems.player_1 == team_ids[j] & chems.player_2 == team_1_ids[i]).select("chemistry")
+                new_val = old_val+ch
+                chem = chem.where("player_1" != team_ids[j] & "player_2" != team_1_ids[i])
+                new_row  = spark.createDataFrame([(team_ids[j], team_1_ids[i], new_val)], list(chems.columns))
+
+
+    for i in range(len(team_2_ids)):
+        for j in range(i+1, len(team_2_ids)):
+            ch_1, ch_2, ch = rat_change(team_2_ids[i], team_2_ids[j])
+            if(ch_1 * ch_2 < 0):
+                # decrease for both
+                old_val = chems.filter(chems.player_1 == team_1_ids[i] & chems.player_2 == team_ids[j]).select("chemistry")
+                new_val = old_val-ch
+                chem = chem.where("player_1" != team_1_ids[i] & "player_2" != team_ids[j])
+                new_row  = spark.createDataFrame([(team_1_ids[i], team_ids[j], new_val)], list(chems.columns))
+
+                old_val = chems.filter(chems.player_1 == team_ids[j] & chems.player_2 == team_1_ids[i]).select("chemistry")
+                new_val = old_val-ch
+                chem = chem.where("player_1" != team_ids[j] & "player_2" != team_1_ids[i])
+                new_row  = spark.createDataFrame([(team_ids[j], team_1_ids[i], new_val)], list(chems.columns))
+            else:
+                # increase for both
+                old_val = chems.filter(chems.player_1 == team_1_ids[i] & chems.player_2 == team_ids[j]).select("chemistry")
+                new_val = old_val+ch
+                chem = chem.where("player_1" != team_1_ids[i] & "player_2" != team_ids[j])
+                new_row  = spark.createDataFrame([(team_1_ids[i], team_ids[j], new_val)], list(chems.columns))
+
+                old_val = chems.filter(chems.player_1 == team_ids[j] & chems.player_2 == team_1_ids[i]).select("chemistry")
+                new_val = old_val+ch
+                chem = chem.where("player_1" != team_ids[j] & "player_2" != team_1_ids[i])
+                new_row  = spark.createDataFrame([(team_ids[j], team_1_ids[i], new_val)], list(chems.columns))
+
+def handle_event(event,match):
+    global playdels
+    req_player_id = int(event['playerId'])
+    if req_player_id==0:
+        pass
+    try:
+        dateutc = match['dateutc'].split()[0]
+        if(event['eventId']==8):#Pass
+            np  = select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['normal_pass']
+            anp = select_this_match(match).filter(playdels.player_Id==req_player_id).agg({'accurate_normal_pass':'sum'}).collect()[0]['sum(accurate_normal_pass)']
+            kp  = select_this_match(match).filter(playdels.player_Id==req_player_id).agg({'key_pass':'sum'}).collect()[0]['sum(key_pass)']
+            akp = select_this_match(match).filter(playdels.player_Id==req_player_id).agg({'accurate_key_pass':'sum'}).collect()[0]['sum(accurate_key_pass)']
+            tags = [tags["id"] for tags in event["tags"]]
+            if 302 in tags:
+                if 1801 in tags:
+                    akp+=1
+                kp+=1
+            else:
+                if 1801 in tags:
+                    anp+=1
+                np+=1
+            playdels = playdels.withColumn("normal_pass",           when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), np).otherwise(playdels["normal_pass"]))
+            playdels = playdels.withColumn("accurate_normal_pass",  when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), anp).otherwise(playdels["accurate_normal_pass"]))
+            playdels = playdels.withColumn("key_pass",              when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), kp).otherwise(playdels["key_pass"]))
+            playdels = playdels.withColumn("accurate_key_pass",     when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), akp).otherwise(playdels["accurate_key_pass"]))
+        # print(select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['normal_pass'])
+            # print(select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['accurate_normal_pass'])
+            # print(select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['key_pass'])
+            # print(select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['accurate_key_pass'])
+        elif(event['eventId']==1):
+            # print("player id : ",req_player_id)
+            # print(select_this_match(match).show())
+            # print(select_this_match(match).filter(playdels.player_Id==req_player_id).show())
+            duel_l=select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['duels_lost']
+            duel_n=select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['duels_neutral']
+            duel_w=select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['duels_won']
+            tags = [tags["id"] for tags in event["tags"]]
+            if 701 in tags:
+                duel_l+=1
+            elif 702 in tags:
+                duel_n+=1
+            elif 703 in tags:
+                duel_w+=1
+            playdels = playdels.withColumn("duels_lost",    when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), duel_l).otherwise(playdels["duels_lost"]))
+            playdels = playdels.withColumn("duels_neutral", when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), duel_n).otherwise(playdels["duels_neutral"]))
+            playdels = playdels.withColumn("duels_won",     when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), duel_w).otherwise(playdels["duels_won"]))
+        elif(event['eventId']==3):
+            effective_f=select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['no_of_effective_freekicks']
+            total_f=select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['total_no_of_freekicks']
+            penalties_scored=select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['no_of_penalties_scored']
+            goals=select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['no_of_goals']
+
+            tags = [tags["id"] for tags in event["tags"]]
+            if 1801 in tags:
+                effective_f+=1
+                total_f+=1
+            elif 1802 in tags:
+                total_f+=1
+            elif 101 in tags:
+                effective_f+=1
+                total_f+=1
+                goals+=1
+            playdels = playdels.withColumn("no_of_effective_freekicks",           when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), effective_f).otherwise(playdels["no_of_effective_freekicks"]))
+            playdels = playdels.withColumn("no_of_penalties_scored",           when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), penalties_scored).otherwise(playdels["no_of_penalties_scored"]))
+            playdels = playdels.withColumn("total_no_of_freekicks",           when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), total_f).otherwise(playdels["total_no_of_freekicks"]))
+            playdels = playdels.withColumn("no_of_goals",           when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), goals).otherwise(playdels["no_of_goals"]))
+
+        elif(event['eventId']==10):
+            shot_t_g=select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['shot_on_target_and_goal']
+            shot_t_ng=select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['shot_on_target_and_not_goal']
+            shots_t=select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['total_shots']
+            goals=select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['no_of_goals']
+
+            tags = [tags["id"] for tags in event["tags"]]
+            if 1801 in tags:
+                if 101 in tags:
+                    goals+=1
+                    shot_t_g+=1
+                    shots_t+=1
+                else:
+                    shot_t_ng+=1
+                    shots_t+=1  
+            elif 1802 in tags:
+                shots_t+=1
+            playdels = playdels.withColumn("shot_on_target_and_goal",           when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), shot_t_g).otherwise(playdels["shot_on_target_and_goal"]))
+            playdels = playdels.withColumn("shot_on_target_and_not_goal",           when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), shot_t_ng).otherwise(playdels["shot_on_target_and_not_goal"]))
+            playdels = playdels.withColumn("total_shots",           when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), shots_t).otherwise(playdels["total_shots"]))
+            playdels = playdels.withColumn("no_of_goals",           when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), goals).otherwise(playdels["no_of_goals"]))
+        elif(event['eventId']==2):
+                foul=select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['no_of_fouls']
+                foul+=1
+                playdels = playdels.withColumn("no_of_fouls",           when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), fouls).otherwise(playdels["no_of_fouls"]))
+        elif(event['eventId']==102):
+                og=select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['no_of_own_goals']
+                og+=1
+                playdels = playdels.withColumn("no_of_own_goals",           when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), fouls).otherwise(playdels["no_of_own_goals"]))
+    except:
+        pass
+
+def query():
+    global playdels
+    input_df = playdels
+    with open('inp_player.json') as f: #input csv path
+        input_q = json.load(f)
+
+    input_q_dict=json.load(input_q)
+
+    if 'req_type' in input_q_dict.keys():
+
+        if input_q_dict['req_type']==1:
+            pass
+
+
+        elif input_q_dict['req_type']==2:
+            name_q=input_q_dict['name']
+            player_dict=dict()
+            
+            with open('play.csv', 'r') as file: #play.csv path
+                reader = csv.reader(file)
+            for row in reader:
+                if row[0]==name_q:
+                    x=row
+                    break
+            
+            player_dict['name']=name_q
+            player_dict['birthArea']=x[1]
+            player_dict['birthDate']=x[2]
+            player_dict['foot']=x[3]
+            player_dict['role']=x[4]
+            player_dict['height']=x[5]
+            player_dict['passportArea']=x[6]
+            player_dict['weight']=x[7]
+
+            #input_rdd_player=input_rdd.filter(col('player_Id')==x[8])  #rdd with details of given player
+
+            input_df_player=input_df.filter(input_df.player_Id==x[8])
+
+            fouls=0
+            goals=0
+            own_goals=0
+            '''
+            for row in input_df_player.collect():
+                fouls+=row['no_of_fouls']
+                goals+=row['no_of_goals']
+                own_goals+=row['no_of_own_goals']
+                key_pass+=row[8]
+                accurate_key_pass+=row[9]
+                normal_pass+=row[6]
+                accurate_normal_pass+=row[7]
+                shots_on_target+=row[16]
+                shots_on_target_not_goal+=row[16]-row[18]
+                shots_total+=row[16]+row[17]
+            '''
+            fouls=input_df_player.select(sum('no_of_fouls')).collect()[0]['sum(no_of_fouls)']
+            goals=input_df_player.select(sum('no_of_goals')).collect()[0]['sum(no_of_goals)']
+            own_goals=input_df_player.select(sum('no_of_own_goals')).collect()[0]['sum(no_of_own_goals)']
+            normal_pass=input_df_player.select(sum('normal_pass')).collect()[0]['sum(normal_pass)']
+            accurate_normal_pass=input_df_player.select(sum('accurate_normal_pass')).collect()[0]['sum(accurate_normal_pass)']
+            key_pass=input_df_player.select(sum('key_pass')).collect()[0]['sum(key_pass)']
+            accurate_key_pass=input_df_player.select(sum('accurate_key_pass')).collect()[0]['sum(accurate_key_pass)']
+            shots_on_target_and_goal=input_df_player.select(sum('shots_on_target_and_goal')).collect()[0]['sum(shots_on_target_and_goal)']
+            shots_on_target_not_goal=input_df_player.select(sum('shots_on_target_not_goal')).collect()[0]['sum(shots_on_target_not_goal)']
+            shots_total=input_df_player.select(sum('shots_total')).collect()[0]['sum(shots_total)']
+
+
+            pass_accuracy_per= ( (accurate_normal_pass +  (accurate_key_pass*2)  )/( normal_pass + (key_pass*2) ) ) * 100
+            pass_accuracy_per.round(2)
+
+            shot_accuracy_per= ( ( shots_on_target_and_goal + shots_on_target_not_goal*(0.5) )/ shots_total ) *100
+            shot_accuracy_per.round(2)
+
+            player_dict['percent_pass_accuracy']=pass_accuracy_per
+            player_dict['percent_shots_on_target']=shot_accuracy_per
+
+            with open('play_json_output.txt', 'w') as json_file:    #player json output path
+                json.dump(player_dict, json_file)
+
+    else:
+        date=input_q_dict['date']
+        #date=datetime.strptime(date,"%Y-%m-%d")
+        
+        label=input_q_dict['label']
+        label_2=label.split(',')
+        team1,team2=label_2[0].split('-')
+        score1,score2=label_2[1].split('-')
+
+        with open('teams.csv', 'r') as file:    #teams.csv path
+            reader = csv.reader(file)
+        
+        team_info=dict()
+        for row in reader:
+            if row[0]==team1:
+                team_1_id=row[1]
+            elif row[0]==team2:
+                team_2_id=row[1]
+            team_info[row[1]]=row[0]
+
+
+        input_df_match=input_df.filter(input_df.match_date==date).filter(input_df.team_1==team_1_id).filter(input_df.team_2==team_2_id).filter(input_df.score_1==int(score1)).filter(input_df.score_2==int(score2))
+        match_dict=dict()
+        match_dict['date']=date
+
+        x=input_df_match.collect()
+        x=x[0]
+        if(score1>score2):
+            winner=team1
+        elif score2>score1:
+            winner=team2
+        else:
+            winner='NULL'
+
+        match_dict['duration']=x['duration']
+        match_dict['winner']=winner
+        match_dict['venue']=x['venue']
+        match_dict['gameweek']=x['gameweek']
+        match_dict['goals']=[]
+        match_dict['own_goals']=[]
+        match_dict['yellow_cards']=[]
+        match_dict['red_cards']=[]
+
+        input_df_match_goals=input_df_match.filter(input_df_match.no_of_goals>0)
+        input_df_match_own_goals=input_df_match.filter(input_df_match.no_of_own_goals>0)
+        input_df_match_yellow_card=input_df_match.filter(input_df_match.yellow_card>0)
+        input_df_match_red_card=input_df_match.filter(input_df_match.red_card>0)
+
+        with open('play.csv', 'r') as file: #play.csv path
+                reader = csv.reader(file)
+        for row in reader:
+            player_info[row[8]]=row[0]
+            
+        for row in input_df_match_goals.collect():
+            temp=dict()
+            temp['name']=player_info[row['player_Id']]
+            temp['team']=team_info[row['team_Id']]
+            temp['number_of_goals']=row['no_of_goals']
+            match_dict['goals'].append(temp)
+
+        for row in input_df_match_own_goals.collect():
+            temp=dict()
+            temp['name']=player_info[row['player_Id']]
+            temp['team']=team_info[row['team_Id']]
+            temp['number_of_goals']=row['no_of_own_goals']
+            match_dict['own_goals'].append(temp)
+
+        for row in input_df_match_yellow_card.collect():
+            match_dict['yellow_card'].append(player_info[row['player_Id']])
+
+        for row in input_df_match_red_card.collect():
+            match_dict['red_card'].append(player_info[row['player_Id']])
+
+        with open('match_json_output.txt', 'w') as json_file:   #player json output path
+            json.dump(match_dict, json_file)
+
+# query()
 
 # def driver(rdd):
 #     a = rdd.collect()
 #     match = json.loads(a[0])
 #     initialise_playdel(match)
-
-
-# print("Pass accuracy",return_pass_accuracy(1,match))
-# print("Duel effectiveness",return_duel_effectiveness(1,match))
-# print("Free Kick effectiveness",return_free_kick_effectiveness(1,match))
-# print("Shot effectiveness",return_shots_on_target(1,match))
-# print("No of Fouls",return_no_of_fouls(1))
-# print("no_of_own_goals",return_no_of_own_goals(1))
-# print("Player rating",return_player_rating(1,match))
-
-
-def handle_event(event,match):
-    global playdels
-    req_player_id = int(event['playerId'])
-    dateutc = match['dateutc'].split()[0]
-    if(event['eventId']==8):#Pass
-        select_this_match(match).show()
-        np = select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['normal_pass']
-        anp = select_this_match(match).filter(playdels.player_Id==req_player_id).agg({'accurate_normal_pass':'sum'}).collect()[0]['sum(accurate_normal_pass)']
-        kp = select_this_match(match).filter(playdels.player_Id==req_player_id).agg({'key_pass':'sum'}).collect()[0]['sum(key_pass)']
-        akp = select_this_match(match).filter(playdels.player_Id==req_player_id).agg({'accurate_key_pass':'sum'}).collect()[0]['sum(accurate_key_pass)']
-        tags = [tags["id"] for tags in event["tags"]]
-        if 302 in tags:
-            if 1801 in tags:
-                akp+=1
-            kp+=1
-        else:
-            if 1801 in tags:
-                anp+=1
-            np+=1
-        playdels = playdels.withColumn("normal_pass",           when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), np).otherwise(playdels["normal_pass"]))
-        playdels = playdels.withColumn("accurate_normal_pass",  when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), anp).otherwise(playdels["accurate_normal_pass"]))
-        playdels = playdels.withColumn("key_pass",              when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), kp).otherwise(playdels["key_pass"]))
-        playdels = playdels.withColumn("accurate_key_pass",     when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), akp).otherwise(playdels["accurate_key_pass"]))
-        # print(select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['normal_pass'])
-        # print(select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['accurate_normal_pass'])
-        # print(select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['key_pass'])
-        # print(select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['accurate_key_pass'])
-
-    elif(event['eventId']==102):#Pass
-        select_this_match(match).show()
-        np = select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['normal_pass']
-        anp = select_this_match(match).filter(playdels.player_Id==req_player_id).agg({'accurate_normal_pass':'sum'}).collect()[0]['sum(accurate_normal_pass)']
-        kp = select_this_match(match).filter(playdels.player_Id==req_player_id).agg({'key_pass':'sum'}).collect()[0]['sum(key_pass)']
-        akp = select_this_match(match).filter(playdels.player_Id==req_player_id).agg({'accurate_key_pass':'sum'}).collect()[0]['sum(accurate_key_pass)']
-        tags = [tags["id"] for tags in event["tags"]]
-        if 302 in tags:
-            if 1801 in tags:
-                akp+=1
-            kp+=1
-        else:
-            if 1801 in tags:
-                anp+=1
-            np+=1
-        playdels = playdels.withColumn("normal_pass",           when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), np).otherwise(playdels["normal_pass"]))
-        playdels = playdels.withColumn("accurate_normal_pass",  when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), anp).otherwise(playdels["accurate_normal_pass"]))
-        playdels = playdels.withColumn("key_pass",              when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), kp).otherwise(playdels["key_pass"]))
-        playdels = playdels.withColumn("accurate_key_pass",     when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), akp).otherwise(playdels["accurate_key_pass"]))
-        # print(select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['normal_pass'])
-        # print(select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['accurate_normal_pass'])
-        # print(select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['key_pass'])
-        # print(select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['accurate_key_pass'])
-
-
+#     playdels.show(50)
+#     print(match)
+#     for event in a[1:]:
+#         # print("event")
+#         event = json.loads(event)
+#         handle_event(event,match)
+#     chems_update(match)
 
 def driver(rdd):
     a = rdd.collect()
-    print(type(a[0]))
+    new_row = []
     match = json.loads(a[0])
-    initialise_playdel(match)
-    print("****************PLAYDELS********************")
-    playdels.show()
-    for event in a[1:]:
-        event = json.loads(event)
-        handle_event(event,match)
-    chems_update(match)
+    new_row.append(match['dateutc'].split()[0])
+    new_row.append(match['label'])
+
+
 
 
 # player profile
@@ -269,8 +545,254 @@ player_profile.printSchema()
 chems = spark.read.options(header='True').csv("file:///home/ishan/Desktop/BD_PROJ/chems.csv")
 chems.printSchema()
 
-ssc = StreamingContext(spark.sparkContext, 5)
-dstream = ssc.socketTextStream('localhost', 6100)
-dstream.foreachRDD(driver)
-ssc.start()
-ssc.awaitTermination()
+playdels = spark.read.options(header='True').csv("file:///home/ishan/Desktop/BD_PROJ/playdels.csv")
+playdels.printSchema()
+
+# playdels.show()
+
+
+
+# ssc = StreamingContext(spark.sparkContext, 5)
+# dstream = ssc.socketTextStream('localhost', 6100)
+# dstream.foreachRDD(driver)
+# ssc.start()
+# ssc.awaitTermination()
+
+
+input_df=playdels
+chemistry_df=chems
+
+f = open('my_inp_predict.json',) 
+input_q = json.load(f) 
+
+# with open("inp_predict.json") as f: #input csv path
+#     # print(f)
+#     input_q = json.loads(json.dumps(f))
+
+# Queries
+
+input_q_dict=input_q
+
+if 'req_type' in input_q_dict.keys():
+
+    if input_q_dict['req_type']==1:
+        player_info_1={}
+
+        with open('play.csv', 'r') as file: #play.csv path
+            reader = csv.reader(file)
+
+            for row in reader:
+                temp=[]
+                temp.append(row[8])
+                temp.append(row[4])
+                # print(str(row[0]))
+                player_info_1[str(row[0])]=temp
+
+        # print(player_info_1)
+        def check_team(team):
+            T=[]
+            gk=0
+            defend=0
+            midf=0
+            fw=0
+            # print(player_info_1)
+            for x in team.keys():
+                if x=='name':
+                    continue
+                else:
+                    if player_info_1[team[x]][1]=='GK':
+                        gk+=1
+                    elif player_info_1[team[x]][1]=='DF':
+                        defend+=1
+                    elif player_info_1[team[x]][1]=='MD':
+                        midf+=1
+                    elif player_info_1[team[x]][1]=='FW':
+                        fw+=1
+                    T.append(team[x])
+            if (gk==1) and (defend>=3) and (midf>=2) and (fw>=1) :
+                return T
+            else:
+                print("Invalid")
+                return []
+
+        def team_strength(players):
+            team_strength=0
+            for i in players:
+                x_2=0
+                for j in players:
+                    if i==j:
+                        continue
+                    else:
+                        x_2+=float(chemistry_df.filter((chemistry_df.player_1 == i) & (chemistry_df.player_2==j)).collect()[0]['chemistry'])
+                x_2=x_2/10
+                rate=player_profile.filter(player_profile.Id==int(player_info_1[i][0])).collect()[0]['rating']
+                x_2=x_2*rate
+                team_strength+=x_2
+            team_strength=team_strength/11
+            return team_strength
+
+
+
+
+        team_1_info=input_q_dict['team1']
+        team_1_players=check_team(team_1_info)
+        # if team_1_players==[]:
+        #     break
+
+        team_2_info=input_q_dict['team2']
+        team_2_players=check_team(team_2_info)
+        # if team_2_players==[]:
+        #     break
+
+        team_1_strength=team_strength(team_1_players)
+        team_2_strength=team_strength(team_2_players)
+
+        chance_of_1=(0.5+team_1_strength- ((team_1_strength+team_2_strength)/2) ) * 100
+        chance_of_1=int(chance_of_1)
+
+        chance_of_2=100- chance_of_1
+
+        predict_dict=dict()
+
+        team1_predict=dict()
+        team2_predict=dict()
+
+        team1_predict['name']=input_q_dict['team1']['name']
+        team1_predict['winning_chance']=chance_of_1
+        team2_predict['name']=input_q_dict['team2']['name']
+        team2_predict['winning_chance']=chance_of_2
+        predict_dict['team1']=team1_predict
+        predict_dict['team2']=team2_predict
+
+        with open('predict_json_output.json', 'w') as json_file: #predict json output path
+            json.dump(predict_dict, json_file,indent=2)
+
+    elif input_q_dict['req_type']==2:
+        name_q=input_q_dict['name']
+        player_dict=dict()
+        
+        with open('play.csv', 'r') as file: #play.csv path
+            reader = csv.reader(file)
+            for row in reader:
+                if row[0]==name_q:
+                    x=row
+                    break
+        
+        player_dict['name']=name_q
+        player_dict['birthArea']=x[1]
+        player_dict['birthDate']=x[2]
+        player_dict['foot']=x[3]
+        player_dict['role']=x[4]
+        player_dict['height']=x[5]
+        player_dict['passportArea']=x[6]
+        player_dict['weight']=x[7]
+
+        input_df_player=input_df.filter(input_df.player_Id==x[8])
+
+        fouls=0
+        goals=0
+        own_goals=0
+
+        fouls=input_df_player.select(sum('no_of_fouls')).collect()[0]['sum(no_of_fouls)']
+        goals=input_df_player.select(sum('no_of_goals')).collect()[0]['sum(no_of_goals)']
+        own_goals=input_df_player.select(sum('no_of_own_goals')).collect()[0]['sum(no_of_own_goals)']
+        normal_pass=input_df_player.select(sum('normal_pass')).collect()[0]['sum(normal_pass)']
+        accurate_normal_pass=input_df_player.select(sum('accurate_normal_pass')).collect()[0]['sum(accurate_normal_pass)']
+        key_pass=input_df_player.select(sum('key_pass')).collect()[0]['sum(key_pass)']
+        accurate_key_pass=input_df_player.select(sum('accurate_key_pass')).collect()[0]['sum(accurate_key_pass)']
+        shots_on_target_and_goal=input_df_player.select(sum('shot_on_target_and_goal')).collect()[0]['sum(shot_on_target_and_goal)']
+        shots_on_target_not_goal=input_df_player.select(sum('shot_on_target_and_not_goal')).collect()[0]['sum(shot_on_target_and_not_goal)']
+        shots_total=input_df_player.select(sum('total_shots')).collect()[0]['sum(total_shots)']
+
+
+        pass_accuracy_per= ( (accurate_normal_pass +  (accurate_key_pass*2)  )/( normal_pass + (key_pass*2) ) ) * 100
+        # round(pass_accuracy_per,2)
+
+        shot_accuracy_per= ( ( shots_on_target_and_goal + shots_on_target_not_goal*(0.5) )/ shots_total ) *100
+        # round(shot_accuracy_per,2)
+
+        player_dict['percent_pass_accuracy']=pass_accuracy_per
+        player_dict['percent_shots_on_target']=shot_accuracy_per
+        player_dict['fouls']=fouls
+        player_dict['goals']=goals
+        with open('out_2.json', 'w') as json_file:    #player json output path
+            json.dump(player_dict, json_file)
+
+else:
+    date=input_q_dict['date']
+    #date=datetime.strptime(date,"%Y-%m-%d")
+    
+    label=input_q_dict['label']
+    label_2=label.split(',')
+    team1,team2=label_2[0].split('-')
+    score1,score2=label_2[1].split('-')
+
+    with open('teams.csv', 'r') as file:    #teams.csv path
+        reader = csv.reader(file)
+    
+        team_info=dict()
+        for row in reader:
+            if row[0]==team1:
+                team_1_id=row[1]
+            elif row[0]==team2:
+                team_2_id=row[1]
+            team_info[row[1]]=row[0]
+
+
+    input_df_match=input_df.filter(input_df.match_date==date).filter(input_df.label==label)
+    match_dict=dict()
+    match_dict['date']=date
+
+    x=input_df_match.collect()
+    x=x[0]
+    if(score1>score2):
+        winner=team1
+    elif score2>score1:
+        winner=team2
+    else:
+        winner='NULL'
+
+    match_dict['duration']=x['duration']
+    match_dict['winner']=winner
+    match_dict['venue']=x['venue']
+    match_dict['gameweek']=x['gameweek']
+    match_dict['goals']=[]
+    match_dict['own_goals']=[]
+    match_dict['yellow_cards']=[]
+    match_dict['red_cards']=[]
+
+    input_df_match_goals=input_df_match.filter(input_df_match.no_of_goals>0)
+    input_df_match_own_goals=input_df_match.filter(input_df_match.no_of_own_goals>0)
+    input_df_match_yellow_card=input_df_match.filter(input_df_match.yellow_card>0)
+    input_df_match_red_card=input_df_match.filter(input_df_match.red_card>0)
+    player_info = {}
+    with open('play.csv', 'r') as file: #play.csv path
+        reader = csv.reader(file)
+        for row in reader:
+            player_info[row[8]]=row[0]
+            
+    for row in input_df_match_goals.collect():
+        temp=dict()
+        temp['name']=player_info[row['player_Id']]
+        temp['team']=team_info[row['team_Id']]
+        temp['number_of_goals']=row['no_of_goals']
+        match_dict['goals'].append(temp)
+
+    for row in input_df_match_own_goals.collect():
+        temp=dict()
+        temp['name']=player_info[row['player_Id']]
+        temp['team']=team_info[row['team_Id']]
+        temp['number_of_goals']=row['no_of_own_goals']
+        match_dict['own_goals'].append(temp)
+
+    for row in input_df_match_yellow_card.collect():
+        match_dict['yellow_cards'].append(player_info[row['player_Id']])
+
+    for row in input_df_match_red_card.collect():
+        match_dict['red_cards'].append(player_info[row['player_Id']])
+
+    with open('match_json_output.json', 'w') as json_file:   #player json output path
+        json.dump(match_dict, json_file,indent=2)
+
+
+# abcce
