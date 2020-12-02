@@ -1,3 +1,4 @@
+from __future__ import print_function
 import sys
 from pyspark import SparkContext, SparkConf
 from pyspark.streaming import StreamingContext
@@ -358,162 +359,6 @@ def handle_event(event,match):
     except:
         pass
 
-def query():
-    global playdels
-    input_df = playdels
-    with open('inp_player.json') as f: #input csv path
-        input_q = json.load(f)
-
-    input_q_dict=json.load(input_q)
-
-    if 'req_type' in input_q_dict.keys():
-
-        if input_q_dict['req_type']==1:
-            pass
-
-
-        elif input_q_dict['req_type']==2:
-            name_q=input_q_dict['name']
-            player_dict=dict()
-            
-            with open('play.csv', 'r') as file: #play.csv path
-                reader = csv.reader(file)
-            for row in reader:
-                if row[0]==name_q:
-                    x=row
-                    break
-            
-            player_dict['name']=name_q
-            player_dict['birthArea']=x[1]
-            player_dict['birthDate']=x[2]
-            player_dict['foot']=x[3]
-            player_dict['role']=x[4]
-            player_dict['height']=x[5]
-            player_dict['passportArea']=x[6]
-            player_dict['weight']=x[7]
-
-            #input_rdd_player=input_rdd.filter(col('player_Id')==x[8])  #rdd with details of given player
-
-            input_df_player=input_df.filter(input_df.player_Id==x[8])
-
-            fouls=0
-            goals=0
-            own_goals=0
-            '''
-            for row in input_df_player.collect():
-                fouls+=row['no_of_fouls']
-                goals+=row['no_of_goals']
-                own_goals+=row['no_of_own_goals']
-                key_pass+=row[8]
-                accurate_key_pass+=row[9]
-                normal_pass+=row[6]
-                accurate_normal_pass+=row[7]
-                shots_on_target+=row[16]
-                shots_on_target_not_goal+=row[16]-row[18]
-                shots_total+=row[16]+row[17]
-            '''
-            fouls=input_df_player.select(sum('no_of_fouls')).collect()[0]['sum(no_of_fouls)']
-            goals=input_df_player.select(sum('no_of_goals')).collect()[0]['sum(no_of_goals)']
-            own_goals=input_df_player.select(sum('no_of_own_goals')).collect()[0]['sum(no_of_own_goals)']
-            normal_pass=input_df_player.select(sum('normal_pass')).collect()[0]['sum(normal_pass)']
-            accurate_normal_pass=input_df_player.select(sum('accurate_normal_pass')).collect()[0]['sum(accurate_normal_pass)']
-            key_pass=input_df_player.select(sum('key_pass')).collect()[0]['sum(key_pass)']
-            accurate_key_pass=input_df_player.select(sum('accurate_key_pass')).collect()[0]['sum(accurate_key_pass)']
-            shots_on_target_and_goal=input_df_player.select(sum('shots_on_target_and_goal')).collect()[0]['sum(shots_on_target_and_goal)']
-            shots_on_target_not_goal=input_df_player.select(sum('shots_on_target_not_goal')).collect()[0]['sum(shots_on_target_not_goal)']
-            shots_total=input_df_player.select(sum('shots_total')).collect()[0]['sum(shots_total)']
-
-
-            pass_accuracy_per= ( (accurate_normal_pass +  (accurate_key_pass*2)  )/( normal_pass + (key_pass*2) ) ) * 100
-            pass_accuracy_per.round(2)
-
-            shot_accuracy_per= ( ( shots_on_target_and_goal + shots_on_target_not_goal*(0.5) )/ shots_total ) *100
-            shot_accuracy_per.round(2)
-
-            player_dict['percent_pass_accuracy']=pass_accuracy_per
-            player_dict['percent_shots_on_target']=shot_accuracy_per
-
-            with open('play_json_output.txt', 'w') as json_file:    #player json output path
-                json.dump(player_dict, json_file)
-
-    else:
-        date=input_q_dict['date']
-        #date=datetime.strptime(date,"%Y-%m-%d")
-        
-        label=input_q_dict['label']
-        label_2=label.split(',')
-        team1,team2=label_2[0].split('-')
-        score1,score2=label_2[1].split('-')
-
-        with open('teams.csv', 'r') as file:    #teams.csv path
-            reader = csv.reader(file)
-        
-        team_info=dict()
-        for row in reader:
-            if row[0]==team1:
-                team_1_id=row[1]
-            elif row[0]==team2:
-                team_2_id=row[1]
-            team_info[row[1]]=row[0]
-
-
-        input_df_match=input_df.filter(input_df.match_date==date).filter(input_df.team_1==team_1_id).filter(input_df.team_2==team_2_id).filter(input_df.score_1==int(score1)).filter(input_df.score_2==int(score2))
-        match_dict=dict()
-        match_dict['date']=date
-
-        x=input_df_match.collect()
-        x=x[0]
-        if(score1>score2):
-            winner=team1
-        elif score2>score1:
-            winner=team2
-        else:
-            winner='NULL'
-
-        match_dict['duration']=x['duration']
-        match_dict['winner']=winner
-        match_dict['venue']=x['venue']
-        match_dict['gameweek']=x['gameweek']
-        match_dict['goals']=[]
-        match_dict['own_goals']=[]
-        match_dict['yellow_cards']=[]
-        match_dict['red_cards']=[]
-
-        input_df_match_goals=input_df_match.filter(input_df_match.no_of_goals>0)
-        input_df_match_own_goals=input_df_match.filter(input_df_match.no_of_own_goals>0)
-        input_df_match_yellow_card=input_df_match.filter(input_df_match.yellow_card>0)
-        input_df_match_red_card=input_df_match.filter(input_df_match.red_card>0)
-
-        with open('play.csv', 'r') as file: #play.csv path
-                reader = csv.reader(file)
-        for row in reader:
-            player_info[row[8]]=row[0]
-            
-        for row in input_df_match_goals.collect():
-            temp=dict()
-            temp['name']=player_info[row['player_Id']]
-            temp['team']=team_info[row['team_Id']]
-            temp['number_of_goals']=row['no_of_goals']
-            match_dict['goals'].append(temp)
-
-        for row in input_df_match_own_goals.collect():
-            temp=dict()
-            temp['name']=player_info[row['player_Id']]
-            temp['team']=team_info[row['team_Id']]
-            temp['number_of_goals']=row['no_of_own_goals']
-            match_dict['own_goals'].append(temp)
-
-        for row in input_df_match_yellow_card.collect():
-            match_dict['yellow_card'].append(player_info[row['player_Id']])
-
-        for row in input_df_match_red_card.collect():
-            match_dict['red_card'].append(player_info[row['player_Id']])
-
-        with open('match_json_output.txt', 'w') as json_file:   #player json output path
-            json.dump(match_dict, json_file)
-
-# query()
-
 # def driver(rdd):
 #     a = rdd.collect()
 #     match = json.loads(a[0])
@@ -534,13 +379,11 @@ def driver(rdd):
     new_row.append(match['label'])
 
 
-
-
 # player profile
 player_profile = spark.read.options(header='True').csv("file:///home/ishan/Desktop/BD_PROJ/play.csv")
 player_profile = player_profile.withColumn("no_of_fouls",lit(0)).withColumn("no_of_goals",lit(0)).withColumn("no_of_own_goals",lit(0)).withColumn("pass_accuracy",lit(0)).withColumn("shots_on_target",lit(0)).withColumn("no_of_matches_played",lit(0)).withColumn("rating",lit(0))
 player_profile.printSchema()
-
+player_profile.toPandas().to_csv('mycsv.csv')
 chems = spark.read.options(header='True').csv("file:///home/ishan/Desktop/BD_PROJ/chems.csv")
 chems.printSchema()
 
@@ -549,8 +392,72 @@ playdels.printSchema()
 
 # playdels.show()
 
+def regression(match_date):
+    global player_profile
+    match_date=datetime.strptime(match_date,"%Y-%m-%d")
+
+    input_df = player_profile.withColumn("birthDate", player_profile["birthDate"].cast(DateType()))
+    df_reg=input_df.select("name","birthDate","rating")
+    df_reg=df_reg.withColumn("Age", months_between(lit(match_date),col("birthDate"))/12)
+    df_reg=df_reg.withColumn("Age_Sq",(col("Age")*col("Age")))
+    df_reg.show()
+
+    assembler = VectorAssembler(inputCols=["Age", "Age_Sq"],outputCol="features")
+    df = assembler.transform(df_reg)
+    lr = LinearRegression(featuresCol = "features", labelCol = "rating", maxIter=10, regParam=0.3, elasticNetParam=0.8)
+    lrModel = lr.fit(df)
+
+    # Print the coefficients and intercept for linear regression
+    print("Coefficients: %s" % str(lrModel.coefficients))
+    print("Intercept: %s" % str(lrModel.intercept))
+
+    return lrModel.predict()
+
+# regression('2022-11-09')
 
 
+def clustering():
+    global player_profile
+    #dataframe for the players needing clustering,those with less than 5 matches
+    input_df =  player_profile
+    # input_df=input_df.filter(input_df.number_of_matches<5)
+
+    #inputCols would be the name of the columns to cluster on,change appropriately
+    vecAssembler = VectorAssembler(inputCols=["rating"], outputCol="features")  
+    new_df=vecAssembler.transform(input_df)
+
+    #model fitting
+    kmeans = KMeans(k=5, seed=1)  # 5 clusters here
+    model = kmeans.fit(new_df.select('features'))
+
+    #adds prediction column showing which cluster who belongs to, and gives new df
+    transformed = model.transform(new_df)
+    transformed.show() 
+    cluster0=transformed.filter(transformed.prediction==0)
+    cluster1=transformed.filter(transformed.prediction==1)
+    cluster2=transformed.filter(transformed.prediction==2)
+    cluster3=transformed.filter(transformed.prediction==3)
+    cluster4=transformed.filter(transformed.prediction==4)
+    cluster_rating=[0,0,0,0,0]
+    cluster_rating[0]=cluster0.select(avg("rating")).collect()[0][0]
+    #cluster0_chemistry=cluster0.select(avg("chemistry")).collect()[0][0]
+
+    cluster_rating[1]=cluster1.select(avg("rating")).collect()[0][0]
+    #cluster1_chemistry=cluster0.select(avg("chemistry")).collect()[0][0]
+
+    cluster_rating[2]=cluster2.select(avg("rating")).collect()[0][0]
+    #cluster2_chemistry=cluster0.select(avg("chemistry")).collect()[0][0]
+
+    cluster_rating[3]=cluster3.select(avg("rating")).collect()[0][0]
+    #cluster3_chemistry=cluster0.select(avg("chemistry")).collect()[0][0]
+
+    cluster_rating[4]=cluster4.select(avg("rating")).collect()[0][0]
+    #cluster4_chemistry=cluster0.select(avg("chemistry")).collect()[0][0]
+
+    # print(cluster0_rating,cluster1_rating,cluster2_rating,cluster3_rating,cluster4_rating)
+
+    global transformed, cluster_rating
+clustering()
 # ssc = StreamingContext(spark.sparkContext, 5)
 # dstream = ssc.socketTextStream('localhost', 6100)
 # dstream.foreachRDD(driver)
@@ -564,11 +471,11 @@ chemistry_df=chems
 f = open('my_inp_predict.json',) 
 input_q = json.load(f) 
 
-# with open("inp_predict.json") as f: #input csv path
-#     # print(f)
-#     input_q = json.loads(json.dumps(f))
+with open("inp_predict.json") as f: #input csv path
+    # print(f)
+    input_q = json.loads(json.dumps(f))
 
-# Queries
+# # Queries
 
 input_q_dict=input_q
 
@@ -624,7 +531,13 @@ if 'req_type' in input_q_dict.keys():
                     else:
                         x_2+=float(chemistry_df.filter((chemistry_df.player_1 == i) & (chemistry_df.player_2==j)).collect()[0]['chemistry'])
                 x_2=x_2/10
-                rate=player_profile.filter(player_profile.Id==int(player_info_1[i][0])).collect()[0]['rating']
+                match_played = player_profile.filter(player_profile.Id==int(player_info_1[i][0])).collect()[0]['no_of_matches_played']
+                if(match_played<5):
+                    cluster=transformed.filter(transformed.Id==int(player_info_1[i][0])).collect()[0]['prediction']
+                    rate = cluster_rating[cluster]
+                else:
+                    regression(input_q['date'])
+                # rate=player_profile.filter(player_profile.Id==int(player_info_1[i][0])).collect()[0]['rating']
                 x_2=x_2*rate
                 team_strength+=x_2
             team_strength=team_strength/11
