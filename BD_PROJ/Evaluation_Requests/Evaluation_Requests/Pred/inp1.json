@@ -1,0 +1,34 @@
+{
+	"req_type": 1,
+	"date": "2020-10-04",
+	"team1":
+	{
+		"name": "Manchster United FC",
+		"player1": "Ragnar Klavan",
+		"player2": "Gary  Cahill",
+		"player3": "Danny Simpson",
+		"player4": "Luke Shaw",
+		"player5": "Jamie Vardy",
+		"player6": "Harry Kane",
+		"player7": "Jordan Pickford",
+		"player8": "Alex  Pritchard",
+		"player9": "Phil Foden",
+		"player10": "Oliver Burke",
+		"player11": "Robbie Brady",
+	},
+	"team2":
+	{
+		"name": "Liverpool FC",
+		"player1": "Harry  Maguire",
+		"player2": "Jonny Evans",
+		"player3": "Ashley Williams",
+		"player4": "Eden Hazard",
+		"player5": "Wayne Rooney",
+		"player6": "Chris Wood",
+		"player7": "Ben Foster",
+		"player8": "Kevin De Bruyne",
+		"player9": "Leon Britton",
+		"player10": "Steven Defour",
+		"player11": "Matty James",
+	}
+}
