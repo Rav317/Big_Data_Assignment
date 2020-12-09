@@ -172,6 +172,21 @@ def initialise_playdel(match):
 			init_row = spark.createDataFrame([(datee, label, playerId, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 90, 0, 0, 0, venue,gameweek,duration)], columns)
 			playdels = playdels.union(init_row)
 
+
+def rat_change(id1, id2, match):
+	mat_rat1 = return_player_rating(id_1, match)
+	init_rat1 = player_profile.filter(player_profile.id == id_1).select(player_profile.rating)
+
+	mat_rat2 = return_player_rating(id_2, match)
+	init_rat2 = player_profile.filter(player_profile.id == id_2).select(player_profile.rating)
+
+	rat_ch_1 = mat_rat1-init_rat1
+	rat_ch_2 = mat_rat2-init_rat2
+
+	ch = abs((rat_ch_1+rat_ch_2)/2)
+
+	return rat_ch_1, rat_ch_2,ch
+
 def chems_update(match):
 	global chems
 	global playdels

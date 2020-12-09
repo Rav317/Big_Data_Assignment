@@ -166,6 +166,20 @@ def initialise_playdel(match):
 			init_row = spark.createDataFrame([(datee, label, playerId, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 90, 0, 0, 0, venue,gameweek,duration)], columns)
 			playdels = playdels.union(init_row)
 
+def rat_change(id1, id2, match):
+	mat_rat1 = return_player_rating(id_1, match)
+	init_rat1 = player_profile.filter(player_profile.id == id_1).select(player_profile.rating)
+
+	mat_rat2 = return_player_rating(id_2, match)
+	init_rat2 = player_profile.filter(player_profile.id == id_2).select(player_profile.rating)
+
+	rat_ch_1 = mat_rat1-init_rat1
+	rat_ch_2 = mat_rat2-init_rat2
+
+	ch = abs((rat_ch_1+rat_ch_2)/2)
+
+	return rat_ch_1, rat_ch_2,ch
+
 def chems_update(match):
 	global chems
 	global playdels
@@ -283,7 +297,7 @@ def handle_event(event,match):
 			playdels = playdels.withColumn("accurate_normal_pass",  when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), anp).otherwise(playdels["accurate_normal_pass"]))
 			playdels = playdels.withColumn("key_pass",              when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), kp).otherwise(playdels["key_pass"]))
 			playdels = playdels.withColumn("accurate_key_pass",     when((playdels["player_Id"] == req_player_id) & (playdels["match_date"] == dateutc) & (playdels["label"] == match['label']), akp).otherwise(playdels["accurate_key_pass"]))
-		# print(select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['normal_pass'])
+			# print(select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['normal_pass'])
 			# print(select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['accurate_normal_pass'])
 			# print(select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['key_pass'])
 			# print(select_this_match(match).filter(playdels.player_Id==req_player_id).collect()[0]['accurate_key_pass'])
