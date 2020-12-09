@@ -1,14 +1,19 @@
 from __future__ import print_function
-import sys
 from pyspark import SparkContext, SparkConf
 from pyspark.streaming import StreamingContext
-import json
-from pyspark.sql import SQLContext
-from pyspark.sql import SparkSession
+from pyspark.sql import SQLContext, SparkSession
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
+from pyspark.ml.feature import VectorAssembler
+from pyspark.ml.regression import LinearRegression
+from pyspark.ml.clustering import KMeans
+
 import pandas as pd
 import csv
+import sys
+import json
+from datetime import datetime
+
 
 spark = SparkSession.builder.appName("Proj").master("local[2]").getOrCreate()
 
@@ -59,7 +64,7 @@ schema = StructType([
 	StructField('duration', StringType(), True),
   ])
 
-# playdels = spark.createDataFrame(spark.sparkContext.emptyRDD(),schema)
+playdels = spark.createDataFrame(spark.sparkContext.emptyRDD(),schema)
 
 def to_datetime(x):
 	tempdate = to_timestamp(x.split()[0],"yyyy-MM-dd")
@@ -144,12 +149,6 @@ def return_player_performance(req_player_id,match):
 def return_player_rating(req_player_id,match):
 	return (return_player_performance(req_player_id,match)+0.5)/2#player_profile.filter(player_profile.Id == req_player_id).collect()[0]['rating']
 
-def playdels_update(match,event):
-	pass
-
-def chems_update(match):
-	pass
-
 def initialise_playdel(match):
 	global playdels
 	columns = list(playdels.columns)
@@ -166,7 +165,6 @@ def initialise_playdel(match):
 			playerId = players["playerId"]
 			init_row = spark.createDataFrame([(datee, label, playerId, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 90, 0, 0, 0, venue,gameweek,duration)], columns)
 			playdels = playdels.union(init_row)
-
 
 def chems_update(match):
 	global chems
@@ -359,72 +357,63 @@ def handle_event(event,match):
 	except:
 		pass
 
-# def driver(rdd):
-#     a = rdd.collect()
-#     match = json.loads(a[0])
-#     initialise_playdel(match)
-#     playdels.show(50)
-#     print(match)
-#     for event in a[1:]:
-#         # print("event")
-#         event = json.loads(event)
-#         handle_event(event,match)
-#     chems_update(match)
-
 def driver(rdd):
-	a = rdd.collect()
-	new_row = []
-	match = json.loads(a[0])
-	new_row.append(match['dateutc'].split()[0])
-	new_row.append(match['label'])
-
+    a = rdd.collect()
+    match = json.loads(a[0])
+    initialise_playdel(match)
+    playdels.show(50)
+    for event in a[1:]:
+        # print("event")
+        event = json.loads(event)
+        handle_event(event,match)
+        print(" ------- Player Details after an event ------- ")
+        playdels.show()
+    chems_update(match)
+    chems.show()
 
 # player profile
 player_profile = spark.read.options(header='True').csv("file:///home/ishan/Desktop/BD_PROJ/play.csv")
-player_profile = player_profile.withColumn("no_of_fouls",lit(0)).withColumn("no_of_goals",lit(0)).withColumn("no_of_own_goals",lit(0)).withColumn("pass_accuracy",lit(0)).withColumn("shots_on_target",lit(0)).withColumn("no_of_matches_played",lit(0)).withColumn("rating",lit(0))
+player_profile = player_profile.withColumn("no_of_fouls",lit(0)).withColumn("no_of_goals",lit(0)).withColumn("no_of_own_goals",lit(0)).withColumn("pass_accuracy",lit(0)).withColumn("shots_on_target",lit(0)).withColumn("no_of_matches_played",lit(0)).withColumn("rating",lit(0.5))
 player_profile.printSchema()
-player_profile.toPandas().to_csv('mycsv.csv')
+
 chems = spark.read.options(header='True').csv("file:///home/ishan/Desktop/BD_PROJ/chems.csv")
 chems.printSchema()
 
-playdels = spark.read.options(header='True').csv("file:///home/ishan/Desktop/BD_PROJ/playdels.csv")
-playdels.printSchema()
 
-# playdels.show()
+def regression_train(match_date):
+    global player_profile
+    global lrModel
+    match_date=datetime.strptime(match_date,"%Y-%m-%d")
 
-def regression(match_date, birth_date):
-	global player_profile
-	match_date=datetime.strptime(match_date,"%Y-%m-%d")
+    input_df = player_profile.withColumn("birthDate", player_profile["birthDate"].cast(DateType()))
+    df_reg=input_df.select("name","birthDate","rating")
+    df_reg=df_reg.withColumn("Age", months_between(lit(match_date),col("birthDate"))/12)
+    df_reg=df_reg.withColumn("Age_Sq",(col("Age")*col("Age")))
+    df_reg.show()
 
-	input_df = player_profile.withColumn("birthDate", player_profile["birthDate"].cast(DateType()))
-	df_reg=input_df.select("name","birthDate","rating")
-	df_reg=df_reg.withColumn("Age", months_between(lit(match_date),col("birthDate"))/12)
-	df_reg=df_reg.withColumn("Age_Sq",(col("Age")*col("Age")))
-	df_reg.show()
+    assembler = VectorAssembler(inputCols=["Age", "Age_Sq"],outputCol="features")
+    df = assembler.transform(df_reg)
+    lr = LinearRegression(featuresCol = "features", labelCol = "rating", maxIter=10, regParam=0.3, elasticNetParam=0.8)
+    lrModel = lr.fit(df)
 
-	assembler = VectorAssembler(inputCols=["Age", "Age_Sq"],outputCol="features")
-	df = assembler.transform(df_reg)
-	lr = LinearRegression(featuresCol = "features", labelCol = "rating", maxIter=10, regParam=0.3, elasticNetParam=0.8)
-	lrModel = lr.fit(df)
+    print("Coefficients: %s" % str(lrModel.coefficients))
+    print("Intercept: %s" % str(lrModel.intercept))
 
-	print("Coefficients: %s" % str(lrModel.coefficients))
-	print("Intercept: %s" % str(lrModel.intercept))
+def regression_test(match_date, birth_date):
+    global lrModel
+    birth_date=datetime.strptime(birth_date,"%Y-%m-%d")
+    diff = relativedelta(match_date, birth_date)
+    diff_years = diff.years + diff.months/12 + diff.days/365
+    test_df = spark.createDataFrame([(diff_years, diff_yearsdiff_years)], schema_test)
 
-	birth_date=datetime.strptime(birth_date,"%Y-%m-%d")
-	diff = relativedelta(match_date, birth_date)
-	diff_years = diff.years + diff.months/12 + diff.days/365
-	test_df = spark.createDataFrame([(diff_years, diff_years*diff_years)], schema_test)
-
-	assembler = VectorAssembler(inputCols=["Age", "Age_Sq"],outputCol="features")
-	test = assembler.transform(test_df)
-	pred = lrModel.transform(test)
-	pred.show()
-
-# regression('2022-11-09', '2000-02-04')
-
+    assembler = VectorAssembler(inputCols=["Age", "Age_Sq"],outputCol="features")
+    test = assembler.transform(test_df)
+    pred = lrModel.transform(test)
+    return pred['rating']
 
 def clustering():
 	global player_profile
+	global transformed, cluster_rating
 	#dataframe for the players needing clustering,those with less than 5 matches
 	input_df =  player_profile
 	# input_df=input_df.filter(input_df.number_of_matches<5)
@@ -463,24 +452,25 @@ def clustering():
 
 	# print(cluster0_rating,cluster1_rating,cluster2_rating,cluster3_rating,cluster4_rating)
 
-	global transformed, cluster_rating
 clustering()
-# ssc = StreamingContext(spark.sparkContext, 5)
-# dstream = ssc.socketTextStream('localhost', 6100)
-# dstream.foreachRDD(driver)
-# ssc.start()
-# ssc.awaitTermination()
+
+
+ssc = StreamingContext(spark.sparkContext, 5)
+dstream = ssc.socketTextStream('localhost', 6100)
+dstream.foreachRDD(driver)
+ssc.start()
+ssc.awaitTermination()
 
 
 input_df=playdels
 chemistry_df=chems
 
-f = open('my_inp_predict.json',) 
+f = open('my_inp_predict.json')
 input_q = json.load(f) 
 
-with open("inp_predict.json") as f: #input csv path
-	# print(f)
-	input_q = json.loads(json.dumps(f))
+# with open("inp_predict.json") as f: #input csv path
+# 	# print(f)
+# 	input_q = json.loads(json.dumps(f))
 
 # # Queries
 
@@ -529,6 +519,7 @@ if 'req_type' in input_q_dict.keys():
 				return []
 
 		def team_strength(players):
+			regression_train(input_q['date'])
 			team_strength=0
 			for i in players:
 				x_2=0
@@ -543,7 +534,7 @@ if 'req_type' in input_q_dict.keys():
 					cluster=transformed.filter(transformed.Id==int(player_info_1[i][0])).collect()[0]['prediction']
 					rate = cluster_rating[cluster]
 				else:
-					regression(input_q['date'])
+					rate = regression_test(input_q['date'],player_profile.filter(player_profile.name==i).collect()[0]['birthDate'])
 				# rate=player_profile.filter(player_profile.Id==int(player_info_1[i][0])).collect()[0]['rating']
 				x_2=x_2*rate
 				team_strength+=x_2
@@ -562,7 +553,6 @@ if 'req_type' in input_q_dict.keys():
 		team_2_players=check_team(team_2_info)
 		# if team_2_players==[]:
 		#     break
-
 		team_1_strength=team_strength(team_1_players)
 		team_2_strength=team_strength(team_2_players)
 
