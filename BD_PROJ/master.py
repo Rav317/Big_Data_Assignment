@@ -712,6 +712,3 @@ else:
 
 	with open('match_json_output.json', 'w') as json_file:   #player json output path
 		json.dump(match_dict, json_file,indent=2)
-
-
-# abcce
