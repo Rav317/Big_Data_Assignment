@@ -1,0 +1,26 @@
+match_date,label,player_Id,team_Id,normal_pass,accurate_normal_pass,key_pass,accurate_key_pass,duels_lost,duels_neutral,duels_won,no_of_effective_freekicks,no_of_penalties_scored,total_no_of_freekicks,shot_on_target_and_goal,shot_on_target_and_not_goal,total_shots,no_of_fouls,no_of_own_goals,no_of_goals,minutes_played,is_substituted,yellow_card,red_card,venue,gameweek,duration
+2017-08-11,"Arsenal - Leicester City, 4 - 3",370224,1609,158,148,34,3,29,35,22,1,0,6,0,6,11,0,0,0,90,0,0,0,Emirates Stadium,1,Regular
+2017-08-11,"Arsenal - Leicester City, 4 - 3",120339,1609,134,130,33,19,49,29,37,5,0,10,1,0,20,0,0,1,90,0,0,1,Emirates Stadium,1,Regular
+2017-08-11,"Arsenal - Leicester City, 4 - 3",7945,1609,136,125,44,8,28,30,20,4,0,8,0,4,6,0,0,0,90,0,0,0,Emirates Stadium,1,Regular
+2017-08-11,"Arsenal - Leicester City, 4 - 3",14869,1609,142,147,42,17,49,32,41,3,0,9,0,0,12,0,0,0,90,0,0,0,Emirates Stadium,1,Regular
+2017-08-11,"Arsenal - Leicester City, 4 - 3",25413,1609,141,120,36,14,27,24,41,0,0,10,1,0,10,2,0,1,90,0,1,0,Emirates Stadium,1,Regular
+2017-08-11,"Arsenal - Leicester City, 4 - 3",7868,1609,152,125,38,14,38,33,34,2,0,8,0,3,5,2,0,0,90,0,0,0,Emirates Stadium,1,Regular
+2017-08-11,"Arsenal - Leicester City, 4 - 3",3560,1609,154,119,38,3,28,34,46,5,0,10,0,6,16,1,0,0,90,0,0,0,Emirates Stadium,1,Regular
+2017-08-11,"Arsenal - Leicester City, 4 - 3",167145,1609,132,124,32,4,35,35,31,3,0,8,0,6,16,1,0,0,90,0,1,0,Emirates Stadium,1,Regular
+2017-08-11,"Arsenal - Leicester City, 4 - 3",3319,1609,122,136,31,5,30,39,43,0,0,6,0,2,14,0,0,0,90,0,0,0,Emirates Stadium,1,Regular
+2017-08-11,"Arsenal - Leicester City, 4 - 3",7882,1609,192,105,36,0,21,38,49,5,1,9,1,6,18,1,0,1,90,0,0,0,Emirates Stadium,1,Regular
+2017-08-11,"Arsenal - Leicester City, 4 - 3",49876,1609,102,100,38,0,43,43,45,3,0,9,0,2,12,1,0,0,90,0,0,0,Emirates Stadium,1,Regular
+2017-08-11,"Arsenal - Leicester City, 4 - 3",14763,1631,145,149,32,9,34,47,41,5,0,7,0,4,15,0,0,0,67,1,0,0,Emirates Stadium,1,Regular
+2017-08-11,"Arsenal - Leicester City, 4 - 3",192748,1631,115,149,47,3,31,22,21,2,0,7,0,6,18,0,0,0,67,1,0,0,Emirates Stadium,1,Regular
+2017-08-11,"Arsenal - Leicester City, 4 - 3",8013,1631,115,138,43,19,46,49,34,1,0,5,0,0,14,1,0,0,75,1,0,0,Emirates Stadium,1,Regular
+2017-08-11,"Arsenal - Leicester City, 4 - 3",8480,1631,157,120,42,9,23,33,27,1,0,5,0,1,7,0,0,0,90,0,0,0,Emirates Stadium,1,Regular
+2017-08-11,"Arsenal - Leicester City, 4 - 3",8653,1631,124,116,39,6,40,22,30,3,0,9,0,6,8,1,0,0,90,0,0,0,Emirates Stadium,1,Regular
+2017-08-11,"Arsenal - Leicester City, 4 - 3",149019,1631,125,112,32,9,50,28,48,2,0,10,1,0,13,1,0,1,90,0,0,0,Emirates Stadium,1,Regular
+2017-08-11,"Arsenal - Leicester City, 4 - 3",8488,1631,117,107,40,11,25,35,25,5,1,8,1,1,7,2,0,1,90,0,0,0,Emirates Stadium,1,Regular
+2017-08-11,"Arsenal - Leicester City, 4 - 3",14853,1631,110,147,34,1,42,38,30,1,0,6,0,2,14,1,0,0,90,0,0,1,Emirates Stadium,1,Regular
+2017-08-11,"Arsenal - Leicester City, 4 - 3",265366,1631,174,118,48,13,33,43,34,3,0,10,0,3,18,2,0,0,90,0,1,0,Emirates Stadium,1,Regular
+2017-08-11,"Arsenal - Leicester City, 4 - 3",12829,1631,192,135,45,4,44,35,44,2,0,9,0,2,10,0,0,0,90,0,0,0,Emirates Stadium,1,Regular
+2017-08-11,"Arsenal - Leicester City, 4 - 3",26150,1631,158,142,39,13,29,20,23,5,0,8,0,5,20,1,0,0,90,0,1,0,Emirates Stadium,1,Regular
+2017-08-11,"Arsenal - Leicester City, 4 - 3",217078,1631,198,107,50,19,41,41,31,5,0,6,0,1,5,1,0,0,23,1,0,0,Emirates Stadium,1,Regular
+2017-08-11,"Arsenal - Leicester City, 4 - 3",285508,1631,152,101,37,20,48,34,33,3,0,6,0,3,16,0,0,1,23,1,0,0,Emirates Stadium,1,Regular
+2017-08-11,"Arsenal - Leicester City, 4 - 3",283142,1631,176,149,49,5,32,36,46,4,0,8,1,1,12,2,0,1,15,1,0,0,Emirates Stadium,1,Regular
